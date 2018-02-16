@@ -8,7 +8,7 @@ type card = {
 };
 
 type state = {
-  cards: array(card),
+  cards: list(card),
   flipped: (option(int), option(int))
 };
 
@@ -36,25 +36,46 @@ let ofCards = items => List.map(item => {symbol: item, flipped: false}, items);
 
 let component = ReasonReact.reducerComponent("Game");
 
+let setElementAt = (~index: int, ~value: 'a, theList: list('a)) =>
+  List.mapi(
+    (i, v) =>
+      if (i == index) {
+        value;
+      } else {
+        v;
+      },
+    theList
+  );
+
 let make = (~cards, _children) => {
   ...component,
   initialState: () => {
-    cards: cards |> double |> shuffle |> ofCards |> Array.of_list,
+    cards: cards |> double |> shuffle |> ofCards,
     flipped: (None, None)
   },
   reducer: (action, state) =>
     switch (action, state.flipped) {
     | (Click(index), (None, None)) =>
       let cards = state.cards;
-      cards[index].flipped = true;
-      ReasonReact.Update({cards, flipped: (Some(index), None)});
+      let newCards =
+        setElementAt(
+          ~index,
+          ~value={...List.nth(cards, index), flipped: true},
+          cards
+        );
+      ReasonReact.Update({cards: newCards, flipped: (Some(index), None)});
     | (Click(index), (Some(flipped), None))
     | (Click(index), (None, Some(flipped))) =>
       let cards = state.cards;
-      cards[index].flipped = true;
-      if (cards[index].symbol != cards[flipped].symbol) {
+      let newCards =
+        setElementAt(
+          ~index,
+          ~value={...List.nth(cards, index), flipped: true},
+          cards
+        );
+      if (List.nth(cards, index).symbol != List.nth(cards, flipped).symbol) {
         ReasonReact.UpdateWithSideEffects(
-          {cards, flipped: (Some(flipped), Some(index))},
+          {cards: newCards, flipped: (Some(flipped), Some(index))},
           (
             ({send}) => {
               let _id = Js.Global.setTimeout(() => send(Unflip), 300);
@@ -63,18 +84,28 @@ let make = (~cards, _children) => {
           )
         );
       } else {
-        ReasonReact.Update({cards, flipped: (None, None)});
+        ReasonReact.Update({cards: newCards, flipped: (None, None)});
       };
     | (Click(_), _) => ReasonReact.NoUpdate
     | (Unflip, (Some(flippedA), Some(flippedB))) =>
       let cards = state.cards;
-      cards[flippedA].flipped = false;
-      cards[flippedB].flipped = false;
-      ReasonReact.Update({cards, flipped: (None, None)});
+      let newCards =
+        setElementAt(
+          ~index=flippedA,
+          ~value={...List.nth(cards, flippedA), flipped: false},
+          cards
+        );
+      let newCards =
+        setElementAt(
+          ~index=flippedB,
+          ~value={...List.nth(newCards, flippedB), flipped: false},
+          newCards
+        );
+      ReasonReact.Update({cards: newCards, flipped: (None, None)});
     | (Unflip, _) => ReasonReact.NoUpdate
     },
   render: ({state, send}) =>
-    Array.mapi(
+    List.mapi(
       (i, card) =>
         <Card
           key=(string_of_int(i))
@@ -84,5 +115,6 @@ let make = (~cards, _children) => {
         />,
       state.cards
     )
+    |> Array.of_list
     |> ReasonReact.arrayToElement
 };
